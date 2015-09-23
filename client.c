@@ -171,28 +171,7 @@ int main(int argc, char *argv[])
 				printf("[DEBUG] ls command\n");				
 				#endif
 
-				stringlen = strlen(cmdbuffer);
-
-				// send ls command to server
-				if ((rv = send(sockfd, cmdbuffer, stringlen, 0)) != stringlen) {
-					Die("Failed to send 'ls' message to server");
-				}
-
-				#ifdef DEBUG
-				printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
-				#endif
-
-
-				#ifdef DEBUG
-				printf("[DEBUG] Handling '%s' request to server\n", cmdbuffer);					
-				#endif
-
-				// receive ls results from server
 				HandleRequestls(sockfd, cmdbuffer, msgbuffer);
-
-				#ifdef DEBUG
-				printf("--== Received results of '%s' from the server --==\n", cmdbuffer);
-				#endif
 			} else if (strcmp(cmdbuffer, "clear") == 0) {
 				system("clear");
 			} else {
@@ -240,8 +219,7 @@ int main(int argc, char *argv[])
 				#endif
 
 				// Send 'cd <directory-name' message to server.
-				SendMessage(sockfd, cmdbuffer, msgbuffer);
-
+				HandleRequestcd(sockfd, cmdbuffer, msgbuffer);
 			} else if ((StartsWith(cmdbuffer, "mkdir") == 0) && strstr(cmdbuffer, " ")) {
 				#ifdef DEBUG
 				printf("[DEBUG] mkdir <directory-name> command\n");
@@ -271,7 +249,7 @@ int StartsWith(const char *string, const char *substring) {
 
 void HelpMessage() {
 	printf("Commands are:\n\n");
-	printf("ls:\t\t print a listing of the contents of the current directory\n");
+	printf("ls:\t\t\t\t print a listing of the contents of the current directory\n");
 	printf("get <remote-file>:\t\t retrieve the <remote-file> on the server and store it in the current directory\n");
 	printf("put <file-name>:\t\t put and store the file from the client machine to the server machine.\n");
 	printf("cd <directory-name>:\t\t change the directory on the server\n");
@@ -300,41 +278,10 @@ int NumInputs(char *string) {
 		#endif		
 
 		numsubstrings++;
-		token = strtok("\0", " ");
+		token = strtok(NULL, " ");
 	}
 	
 	return numsubstrings;
-}
-
-int HandleRequestls(int socket, char *cmdbuffer, char *msgbuffer) {
-	unsigned int stringlen = strlen(cmdbuffer);
-
-	// Send command to server
-	if (send(socket, cmdbuffer, stringlen, 0) != stringlen) {
-		Die("Failed to send message");
-	}
-
-	int bytesRecvd = 0;
-
-	// Read results from server until a null terminator is found
-	while (1) {
-		if((bytesRecvd = recv(socket, msgbuffer, BUFSIZE, 0)) < 0) {
-			Die("Failed to receive message");
-		}
-
-		// Check if it is the last message
-		if (msgbuffer[0] == '\0') {
-			break;
-		}
-
-		// Output the server results
-		printf("%s", msgbuffer);
-
-		// clear msgbuffer
-		memset(msgbuffer, 0, sizeof(msgbuffer));
-	}
-
-	return 0;
 }
 
 int SendMessage(int socket, char *cmdbuffer, char *msgbuffer) {
@@ -344,6 +291,86 @@ int SendMessage(int socket, char *cmdbuffer, char *msgbuffer) {
 	if (send(socket, cmdbuffer, stringlen, 0) != stringlen) {
 		Die("Failed to send message");
 	}
+
+	return 0;
+}
+
+int HandleRequestls(int socket, char *cmdbuffer, char *msgbuffer) {
+	unsigned int stringlen = strlen(cmdbuffer);
+
+	#ifdef DEBUG
+	printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
+	#endif
+
+	// Send command to server.
+	if (send(socket, cmdbuffer, stringlen, 0) != stringlen) {
+		Die("Failed to send message");
+	}
+
+	#ifdef DEBUG
+	printf("[DEBUG] Handling '%s' request to server\n", cmdbuffer);
+	#endif
+
+	int bytesRecvd = 0;
+
+	// Read results from server until a null terminator is found.
+	while (1) {
+		if ((bytesRecvd = recv(socket, msgbuffer, BUFSIZE, 0)) < 0) {
+			Die("Failed to receive message");
+		}
+
+		// Check if it is the last message.
+		if (msgbuffer[0] == '\0') {
+			break;
+		}
+
+		// Output the server results.
+		printf("%s", msgbuffer);
+
+		// Clear msgbuffer.
+		memset(msgbuffer, 0, sizeof(msgbuffer));
+	}
+
+	#ifdef DEBUG
+		printf("--== Received entire result of '%s' from the server --==\n", cmdbuffer);
+		#endif
+	return 0;
+}
+
+int HandleRequestcd(int socket, char *cmdbuffer, char *msgbuffer) {
+	unsigned int stringlen = strlen(cmdbuffer);
+
+	#ifdef DEBUG
+	printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
+	#endif
+
+	// Send command to server.
+	if (send(socket, cmdbuffer, stringlen, 0) != stringlen) {
+		Die("Failed to send message");
+	}
+
+	#ifdef DEBUG
+	printf("[DEBUG] Handling '%s' request to server\n", cmdbuffer);
+	#endif
+
+	int bytesRecvd = 0;
+
+	// Read result from server.
+		if ((bytesRecvd = recv(socket, msgbuffer, BUFSIZE, 0)) < 0) {
+			Die("Failed to receive message");
+		}
+
+		if ((strcmp(msgbuffer, "success") != 0)) {
+			// Output the server results.
+			printf("%s", msgbuffer);
+		}
+
+		// clear msgbuffer
+		memset(msgbuffer, 0, sizeof(msgbuffer));
+
+	#ifdef DEBUG
+		printf("--== Received entire result of '%s' from the server --==\n", cmdbuffer);
+	#endif
 
 	return 0;
 }
