@@ -31,12 +31,15 @@ int PutFileRemote(const char *filename);
 // Returns the number of substrings in a string.
 int NumInputs(char *string);
 
-// Returns 0 if message sent and server reply are successful.
-int HandleRequestls(int socket, char *cmdbuffer, char *msgbuffer);
-
 // Returns 0 if message is sucessfully sent.
 int SendMessage(int socket, char *cmdbuffer, char *msgbuffer);
 
+// Handles the request for the ls command.
+int HandleRequestls(int socket, char *cmdbuffer, char *msgbuffer);
+
+// Sends a message to the server and expects a single message back 
+// from the server with the result of the command.
+int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer);
 
 /////////////////////////////////////////////////////////////////////
 // Main.
@@ -218,15 +221,13 @@ int main(int argc, char *argv[])
 				printf("[DEBUG] cd <directory> command\n");
 				#endif
 
-				// Send 'cd <directory-name' message to server.
-				HandleRequestcd(sockfd, cmdbuffer, msgbuffer);
+				HandleRequest(sockfd, cmdbuffer, msgbuffer);
 			} else if ((StartsWith(cmdbuffer, "mkdir") == 0) && strstr(cmdbuffer, " ")) {
 				#ifdef DEBUG
 				printf("[DEBUG] mkdir <directory-name> command\n");
 				#endif
 
-				// Send 'mkdir <directory-name>' message to server.
-
+				HandleRequest(sockfd, cmdbuffer, msgbuffer);
 			} else {
 				printf("Invalid command.\n");
 				HelpMessage();
@@ -337,7 +338,7 @@ int HandleRequestls(int socket, char *cmdbuffer, char *msgbuffer) {
 	return 0;
 }
 
-int HandleRequestcd(int socket, char *cmdbuffer, char *msgbuffer) {
+int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer) {
 	unsigned int stringlen = strlen(cmdbuffer);
 
 	#ifdef DEBUG
