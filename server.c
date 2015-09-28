@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -73,24 +74,82 @@ int main()
     
     while (1){
         bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0);
+        printf("%s\n", buffer);
         if (strcmp(buffer, "quit") == 0) {
+            printf("received quit command\n");
                 cleanUp();
         }
-        if (strcmp(buffer, "ls\0") == 0) {
-            int rc;
-            //rc = syscall(SYS_ls, );
-            //send(clientSocket, buffer, sizeof(buffer), 0);
+
+        else if (strcmp(buffer, "ls\0") == 0) {
+            printf("received ls command\n");
+            file = popen("ls", "r");
+            char c;
+            int k = 0;
+            while ((c = fgetc(file)) != EOF) {
+                buffer[k] = c;
+                k++;
+            }
+            printf("filling the following in the buffer \n %s \n",buffer);
+            send(clientSocket, buffer, sizeof(buffer), 0);
+            pclose(file);
+            
+        } else if (buffer[0] == 'c' && buffer[1] == 'd') {
+            printf("received cd command\n");
+
+            char directory[MAX_BUF] = {'\0'};
+            int i;
+            
+            for (i = 3; buffer[i] != '\0'; i++){
+                directory[i-3] = buffer[i];
+            }
+            
+            if (chdir( directory) == 0 ){
+                printf("cd success\n");
+                send(clientSocket, "success\0", sizeof("success\0"), 0);
+            } else {
+                printf("cd fail\n");
+                send(clientSocket, "fail\0", sizeof("fail\0"), 0);
+            }
+        } else if (buffer[0] == 'g' && buffer[1] == 'e' && buffer[2] == 't'){
+            printf("received get command \n");
+            
+        } else if ( buffer[0] == 'p' && buffer[1] == 'u' && buffer[2] == 't'){
+            printf("received put command \n");
+            
+        } else if ( buffer[0] == 'm' && buffer[1] == 'k' && buffer[2] == 'd'&& buffer[3] == 'i'&& buffer[4] == 'r') {
+            printf("received mkdir command \n");
+            
+            char directory[MAX_BUF] = {'\0'};
+            int i;
+            
+            for (i = 6; buffer[i] != '\0'; i++){
+                directory[i-6] = buffer[i];
+            }
+            printf("%s ", buffer);
+            printf("%s \n", directory);
+            
+            if (mkdir(directory, 0700) == 0) {
+                printf("mkdir success");
+                send(clientSocket, "success\0", sizeof("success\0"), 0);
+            } else {
+                printf("mkdir fail\n");
+                send(clientSocket, "fail\0", sizeof("fail\0"), 0);
+            }
+            
+        
+        } else {
+            send(clientSocket, "improper command\0", sizeof("improper command\0"), 0);
         }
+        
         memset(buffer, 0, sizeof(buffer));
     }
-    
-
     
     
     cleanUp();
     
     return 0;
 }
+
 
 /*         Name: cleanUp
  *  Description: closes the listening socket, client socket, and the log file
