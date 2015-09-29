@@ -138,11 +138,12 @@ int main(int argc, char *argv[]) {
     printf("ft> ");
     fgets(cmdbuffer, BUFSIZE, stdin);
 
+      cmdbuffer[strlen(cmdbuffer)-1] = 0;
     // replace '\n' at the end of user input with '\0'.
-    char *pos;
-    if ((pos = strchr(cmdbuffer, '\n')) != NULL) {
-      *pos = '\0';
-    }
+    //char *pos;
+    //if ((pos = strchr(cmdbuffer, '\n')) != NULL) {
+    //  *pos = '\0';
+    //}
 
     // NumInputs replaces the buffer used, so create a new buffer.
     char pstring[BUFSIZE];
@@ -315,7 +316,7 @@ int SendMessage(int socket, char *buffer) {
   #endif
 
   // Send command to server
-  if (send(socket, buffer, sizeof(char)*BUFSIZE, 0) < 0) {
+  if (send(socket, buffer, sizeof(buffer), 0) < 0) {
     Die("Failed to send message");
   }
 
@@ -366,6 +367,8 @@ int HandleRequestLs(int socket, char *cmdbuffer, char *msgbuffer) {
     if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
       Die("Failed to receive message");
     }
+    
+    msgbuffer[bytesRecvd] = '\0';
 
     // Check if it is the last message.
     //if (msgbuffer[0] == '\0') {

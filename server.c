@@ -16,6 +16,7 @@
 
 void handleSigInt(int);
 void cleanUp();
+void handlels(char*);
 int myListenSocket, clientSocket;
 FILE *file;
 
@@ -73,25 +74,23 @@ int main()
     printf("--== Connection Successful, Server Ready to read Messages! --==\n");
     
     while (1){
+        
+        printf("waiting for new input \n");
+        
         bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0);
-        printf("%s\n", buffer);
+        buffer[strlen(buffer)+1] = 0;
+        
         if (strcmp(buffer, "quit") == 0) {
+            
             printf("received quit command\n");
-                cleanUp();
-        }
-
-        else if (strcmp(buffer, "ls\0") == 0) {
-            printf("received ls command\n");
-            file = popen("ls", "r");
-            char c;
-            int k = 0;
-            while ((c = fgetc(file)) != EOF) {
-                buffer[k] = c;
-                k++;
-            }
-            printf("filling the following in the buffer \n %s \n",buffer);
+            cleanUp();
+            
+        } else if (buffer[0] == 'l' && buffer[1] == 's') {
+            
+            handlels(buffer);
             send(clientSocket, buffer, sizeof(buffer), 0);
-            pclose(file);
+
+            //memset(buffer, 0, sizeof(buffer));
             
         } else if (buffer[0] == 'c' && buffer[1] == 'd') {
             printf("received cd command\n");
@@ -110,6 +109,7 @@ int main()
                 printf("cd fail\n");
                 send(clientSocket, "fail\0", sizeof("fail\0"), 0);
             }
+            
         } else if (buffer[0] == 'g' && buffer[1] == 'e' && buffer[2] == 't'){
             printf("received get command \n");
             
@@ -119,31 +119,29 @@ int main()
         } else if ( buffer[0] == 'm' && buffer[1] == 'k' && buffer[2] == 'd'&& buffer[3] == 'i'&& buffer[4] == 'r') {
             printf("received mkdir command \n");
             
-            char directory[MAX_BUF] = {'\0'};
+            char directory[MAX_BUF];
             int i;
             
             for (i = 6; buffer[i] != '\0'; i++){
                 directory[i-6] = buffer[i];
             }
-            printf("%s ", buffer);
+            printf("%s \n", buffer);
             printf("%s \n", directory);
             
+            /** making directory */
             if (mkdir(directory, 0700) == 0) {
-                printf("mkdir success");
-                send(clientSocket, "success\0", sizeof("success\0"), 0);
+                printf("mkdir success\n");
+                send(clientSocket, "success", sizeof(buffer), 0);
             } else {
                 printf("mkdir fail\n");
-                send(clientSocket, "fail\0", sizeof("fail\0"), 0);
+                send(clientSocket, "fail", sizeof(buffer), 0);
             }
-            
-        
         } else {
-            send(clientSocket, "improper command\0", sizeof("improper command\0"), 0);
+            printf("getting this string\n %s\n", buffer);
         }
         
         memset(buffer, 0, sizeof(buffer));
     }
-    
     
     cleanUp();
     
@@ -163,4 +161,23 @@ void cleanUp(){
     
     printf("clean up finished, terminating process");
     exit(0);
+}
+
+/*         Name: ls
+ *  Description: fills buffer with output of ls command
+ *   Parameters: char array buffer
+ *       Return: void
+ */
+void handlels(char* buffer){
+    printf("received ls command\n");
+    file = popen("ls", "r");
+    char c;
+    int k = 0;
+    while ((c = fgetc(file)) != EOF) {
+        buffer[k] = c;
+        k++;
+    }
+    buffer[k+1] = 0;
+    fflush(file);
+    pclose(file);
 }
