@@ -78,7 +78,7 @@ int main()
         printf("waiting for new input \n");
         
         bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0);
-        buffer[strlen(buffer)+1] = 0;
+        buffer[bytesRcv] = '\0';
         
         if (strcmp(buffer, "quit") == 0) {
             
@@ -177,7 +177,7 @@ void handlels(char* buffer){
         buffer[k] = c;
         k++;
     }
-    buffer[k+1] = 0;
+    buffer[k] = 0;
     fflush(file);
     pclose(file);
 }
