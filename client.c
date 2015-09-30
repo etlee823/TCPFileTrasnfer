@@ -5,7 +5,7 @@
 #include <string.h>       // For memset(), strstr().
 #include <unistd.h>       // For close(), access(), exec().
 
-#define BUFSIZE 1024+1    // Buffer size.
+#define BUFSIZE 1024    // Buffer size.
 //#define DEBUG 0         // If defined, print statements will be enabled for debugging.
 
 
@@ -27,6 +27,8 @@ int FileExists(const char *filename);
 
 // Returns 0 if the specified file is succesfully sent to the server.
 int PutFileRemote(const char *filename);
+
+int GetFileRemote(const char *filename);
 
 // Returns the number of substrings in a string.
 int NumInputs(char *string);
@@ -172,7 +174,7 @@ int main(int argc, char *argv[]) {
         #endif
 
         // Send the 'quit' message to the server.
-        if ((rv = send(sockfd, cmdbuffer, stringlen, 0)) != stringlen) {
+        if ((rv = send(sockfd, cmdbuffer, sizeof(cmdbuffer), 0)) != stringlen) {
           Die("Failed to send 'quit' message to server");
         }
 
@@ -198,7 +200,7 @@ int main(int argc, char *argv[]) {
       } // End of 1 command input.
     } else if (rv == 2) { // 2 command inputs.
       // Basic format validation for option and 1 argument.
-      if ((StartsWith(cmdbuffer, "get") == 0) && strstr(cmdbuffer, " ")) {
+      if ((StartsWith(cmdbuffer, "get ") == 0) && strstr(cmdbuffer, " ")) {
         #ifdef DEBUG
         printf("[DEBUG] get <remote-file> command\n");
         #endif
@@ -282,6 +284,10 @@ int PutFileRemote(const char *filename) {
   return 0;
 }
 
+int GetFileRemote(const char *filename) {
+    return 0;
+}
+
 int NumInputs(char *string) {
   // send ls command
   #ifdef DEBUG
@@ -316,7 +322,7 @@ int SendMessage(int socket, char *buffer) {
   #endif
 
   // Send command to server
-  if (send(socket, buffer, sizeof(buffer), 0) < 0) {
+  if (send(socket, buffer, sizeof(char)*BUFSIZE, 0) < 0) {
     Die("Failed to send message");
   }
 

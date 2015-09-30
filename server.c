@@ -12,18 +12,21 @@
 #include <sys/syscall.h>
 
 #define MAX_BUF 1024
-#define PORT 6665
+#define PORT 6666
 
 void handleSigInt(int);
 void cleanUp();
 void handlels(char*);
+void clearBuffer(char*);
+int fileExists(const char*);
+
 int myListenSocket, clientSocket;
 FILE *file;
 
 int main()
 {
     
-    char logName[MAX_BUF], ip[MAX_BUF], buffer[MAX_BUF], str[MAX_BUF];
+    char* logName[MAX_BUF], ip[MAX_BUF], buffer[MAX_BUF] , str[MAX_BUF];
     int  port, i, addrSize, bytesRcv;
     struct sockaddr_in  myAddr, clientAddr;
     socklen_t len;
@@ -73,13 +76,16 @@ int main()
     
     printf("--== Connection Successful, Server Ready to read Messages! --==\n");
     
+    
+    
+    
     while (1){
         
         printf("waiting for new input \n");
         
         bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0);
-        buffer[bytesRcv] = '\0';
-        
+        printf("bytesRcv prints %d\n", bytesRcv);
+        printf("I have received this in buffer \n %s \n", buffer);
         if (strcmp(buffer, "quit") == 0) {
             
             printf("received quit command\n");
@@ -89,13 +95,11 @@ int main()
             
             handlels(buffer);
             send(clientSocket, buffer, sizeof(buffer), 0);
-
-            //memset(buffer, 0, sizeof(buffer));
             
         } else if (buffer[0] == 'c' && buffer[1] == 'd') {
             printf("received cd command\n");
 
-            char directory[MAX_BUF] = {'\0'};
+            char directory[MAX_BUF] = {0};
             int i;
             
             for (i = 3; buffer[i] != '\0'; i++){
@@ -104,7 +108,7 @@ int main()
             
             if (chdir( directory) == 0 ){
                 printf("cd success\n");
-                send(clientSocket, "success\0", sizeof("success\0"), 0);
+                send(clientSocket, "success", sizeof("success"), 0);
             } else {
                 printf("cd fail\n");
                 send(clientSocket, "fail\0", sizeof("fail\0"), 0);
@@ -113,18 +117,64 @@ int main()
         } else if (buffer[0] == 'g' && buffer[1] == 'e' && buffer[2] == 't'){
             printf("received get command \n");
             
+            char fileName[MAX_BUF] = {0};
+            int i;
+            
+            for (i = 4; buffer[i] != '\0'; i++){
+                fileName[i-4] = buffer[i];
+            }
+            if (!fileExists(fileName)){
+                file = fopen(fileName, "w");
+                while (bytesRcv){
+                    char c;
+                    int k = 0;
+                    while ((c = fgetc(file)) != EOF) {
+                        buffer[k] = c;
+                        k++;
+                    }
+                }
+                fclose(file);
+                send(clientSocket, buffer, sizeof(buffer), 0);
+            } else {
+                send(clientSocket, "fail\n", sizeof("fail\n"), 0);
+            }
+            
         } else if ( buffer[0] == 'p' && buffer[1] == 'u' && buffer[2] == 't'){
             printf("received put command \n");
+            
+            char fileName[MAX_BUF] = {0};
+            int i;
+            char c;
+            int k=0;
+            
+            for (i = 4; buffer[i] != '\0'; i++){
+                fileName[i-4] = buffer[i];
+            }
+            //if (!fileExists(fileName)){
+            file = fopen(fileName, "w");
+            
+                //while (c = fgetc(file)) != EOF){
+                    fwrite(buffer, 1, sizeof(buffer), file);
+                //}
+            
+            printf("finished writing\n");
+            fclose(file);
+            printf("finished sending\n");
+            send(clientSocket, "success", sizeof("success"), 0);
+            //} else {
+            //    send(clientSocket, "fail\n", sizeof("fail\n"), 0);
+            //}
             
         } else if ( buffer[0] == 'm' && buffer[1] == 'k' && buffer[2] == 'd'&& buffer[3] == 'i'&& buffer[4] == 'r') {
             printf("received mkdir command \n");
             
-            char directory[MAX_BUF];
+            char directory[MAX_BUF] = {0};
             int i;
             
             for (i = 6; buffer[i] != '\0'; i++){
                 directory[i-6] = buffer[i];
             }
+            
             printf("%s \n", buffer);
             printf("%s \n", directory);
             
@@ -140,7 +190,7 @@ int main()
             printf("getting this string\n %s\n", buffer);
         }
         
-        memset(buffer, 0, sizeof(buffer));
+        clearBuffer(buffer);
     }
     
     cleanUp();
@@ -180,4 +230,22 @@ void handlels(char* buffer){
     buffer[k] = 0;
     fflush(file);
     pclose(file);
+}
+
+/*         Name: clearBuffer
+ *  Description: clears buffer using memset
+ *   Parameters: char array buffer
+ *       Return: void
+ */
+void clearBuffer(char* buffer){
+    memset(buffer, '\0', sizeof(char)*MAX_BUF);
+}
+
+/*         Name: fileExists
+ *  Description: returns an intenger based on existence of file
+ *   Parameters: char*
+ *       Return: int
+ */
+int fileExists(const char *filename) {
+    return access(filename, F_OK);
 }
