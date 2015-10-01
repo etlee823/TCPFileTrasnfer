@@ -209,7 +209,7 @@ int main(int argc, char *argv[]) {
         printf("[DEBUG] get <remote-file> command\n");
         #endif
 
-        HandleRequestGet(socket, cmdbuffer, msgbuffer);
+        HandleRequestGet(sockfd, cmdbuffer, msgbuffer);
 
       } else if ((StartsWith(cmdbuffer, "put ") == 0) && strstr(cmdbuffer, " ")) {
         #ifdef DEBUG
@@ -475,7 +475,7 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
 
       fseek(file, 0, SEEK_END);
       unsigned long filesize = ftell(file);
-      char *buffers = (char*)malloc(sizeof(char)*filesize);
+
 
       #ifdef DEBUG
       printf("[DEBUG] %s has size: %d\n", filename, filesize);
@@ -509,7 +509,7 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       #ifdef DEBUG
       printf("[DEBUG] Server ready to receive messages\n");
       #endif
-
+      char *buffers = (char*)malloc(sizeof(char)*filesize);
       rewind(file);
       // store read data into buffer
       fread(buffers, sizeof(char), filesize, file);
@@ -579,35 +579,58 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
   #endif
 
   // waiting for server to send for filesize
-  ReceiveMessage(socket, msgbuffer);
-
-  #ifdef DEBUG
-  printf("[DEBUG] Received filesize from server: '%d'\n", msgbuffer);
-  #endif
-
-  FILE *file;
-  char *filename = strchr(cmdbuffer, ' ') + 1;
-
-  file = fopen(filename, "w");
-  send(socket, "filesize", sizeof("filesize"), 0);
-
   struct header hdr;
 
   hdr.data_length = 0;
   // receive header
   recv(socket, (const char*)(&hdr), sizeof(hdr), 0);
-  printf("data_length = %d\n", hdr.data_length);
+
+  int filesize = hdr.data_length;
+
+  printf("data_length = %d\n", filesize);
+
+  if (filesize == -1) {
+    printf("File does not exist on server. Please try again.\n");
+    return 0;
+  }
+
+  #ifdef DEBUG
+  printf("[DEBUG] Received filesize from server: '%d'\n", msgbuffer);
+  #endif
+
+  // file exists on the server. 
+  // send a message to the server to begin sending the file
+
+  int received = 0, n = 0;
+  FILE *file;
+  char *filename = strchr(cmdbuffer, ' ') + 1;
+
+  file = fopen(filename, "w");
+
   // resize buffer
-  char *tempBuffer = calloc(sizeof(char), hdr.data_length);
+  char *tempBuffer = calloc(sizeof(char), filesize);
   // receive data
   send(socket, "clientReady", sizeof("clientReady"), 0);
-  recv(socket, tempBuffer, sizeof(char)*hdr.data_length, 0);
-  fwrite(tempBuffer, 1, sizeof(char)*hdr.data_length, file);
-  
-  printf("finished writing\n");
+
+  #ifdef DEBUG
+  printf("[DEBUG] Sending clientReady to the server.\n");
+  #endif
+
+  while(received < filesize) {
+      n = recv(socket, tempBuffer+received, filesize-received, 0);
+      if(n == -1)
+          break;
+      received += n;
+  }
+
+  #ifdef DEBUG
+  printf("[DEBUG] Received the file from the server.\n");
+  #endif
+
+  fwrite(tempBuffer, 1, sizeof(char)*filesize, file);
+
   fclose(file);
-  printf("finished sending\n");
-  send(socket, "success", sizeof("success"), 0);
+  free(tempBuffer);
 
   return 0;
 }

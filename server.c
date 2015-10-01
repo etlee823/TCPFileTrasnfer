@@ -129,20 +129,58 @@ int main()
             for (i = 4; buffer[i] != '\0'; i++){
                 fileName[i-4] = buffer[i];
             }
-            if (!fileExists(fileName)){
-                file = fopen(fileName, "w");
-                while (bytesRcv){
-                    char c;
-                    int k = 0;
-                    while ((c = fgetc(file)) != EOF) {
-                        buffer[k] = c;
-                        k++;
-                    }
+            
+            struct header hdr;
+
+            if (!fileExists(fileName)) {
+                file = fopen(fileName, "rb");
+
+                fseek(file, 0, SEEK_END);
+                unsigned long filesize = ftell(file);
+
+                // send header to client
+                hdr.data_length = filesize;
+                send(clientSocket, (const char*)(&hdr), sizeof(hdr), 0);
+
+                printf("Sent size of file to client");
+
+                // recv msg from client to begin sending file
+                recv(clientSocket, buffer, sizeof(buffer),0);
+
+                if (strcmp(buffer, "clientReady") != 0) {
+                  printf("client not ready\n");
+                  return -1;
                 }
+
+
+                // client ready to receive data
+                char *buffers = (char*)malloc(sizeof(char)*filesize);
+                rewind(file);
+                // store read data into buffer
+                fread(buffers, sizeof(char), filesize, file);
+                // send buffer to client
+
+                #ifdef DEBUG
+                printf("[DEBUG] Sending file to server.\n");
+                #endif
+
+                int sent = 0, n = 0;
+                while (sent < filesize) {
+                n = send(clientSocket, buffers+sent, filesize-sent, 0); // error checking is done in actual code and it sends perfectly
+                if (n == -1)
+                    break;  // ERROR
+
+                sent += n;
+                }
+
+                printf("Sent file to server\n");
+
+
                 fclose(file);
-                send(clientSocket, buffer, sizeof(buffer), 0);
+                free(buffers);
             } else {
-                send(clientSocket, "fail\n", sizeof("fail\n"), 0);
+                hdr.data_length = -1;
+                send(clientSocket, (const char*)(&hdr), sizeof(hdr), 0);
             }
             
         } else if ( buffer[0] == 'p' && buffer[1] == 'u' && buffer[2] == 't'){
