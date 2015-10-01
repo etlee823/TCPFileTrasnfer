@@ -8,10 +8,12 @@
 #define BUFSIZE 1024    // Buffer size.
 //#define DEBUG 0         // If defined, print statements will be enabled for debugging.
 
+// For the size of files being sent or received.
 struct header
 {
   long  data_length;
 };
+
 
 /////////////////////////////////////////////////////////////////////
 // Function protoypes.
@@ -28,11 +30,6 @@ void HelpMessage();
 
 // Returns 0 if the file name specifed exists in the current diretory.
 int FileExists(const char *filename);
-
-// Returns 0 if the specified file is succesfully sent to the server.
-int PutFileRemote(const char *filename);
-
-int GetFileRemote(const char *filename);
 
 // Returns the number of substrings in a string.
 int NumInputs(char *string);
@@ -52,14 +49,10 @@ int HandleRequestLs(int socket, char *cmdbuffer, char *msgbuffer);
 // from the server with the result of the command.
 int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer);
 
-// Sends a message to the server alerting it is about to send a message
-// and expects a message that says "Ready to accept file". The client will
-// then continuously send messages of the file, and send a message with a 
-// null character to let the user it is finished. Output to user that the client
-// has finished sending the file to the server.
+// Sends a file from the current directory to the server.
 int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer);
 
-
+// Gets a file from the server if it exists.
 int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer);
 
 /////////////////////////////////////////////////////////////////////
@@ -67,20 +60,12 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer);
 /////////////////////////////////////////////////////////////////////
 
 int main(int argc, char *argv[]) {
-  int sockfd;                         // Socket descripter
-  struct sockaddr_in serveraddress;   // Server address
-  unsigned short serverport;          // Server port
-  unsigned int stringlen;             // Length of string
-  char cmdbuffer[BUFSIZE];            // Buffer for command
-  char msgbuffer[BUFSIZE];            // msgbuffer for string
-  char *servIP;                       // Server IP address (dotted)
-
-/*
-  // for testing main logic only, skipping socket creation
-  #ifdef DEBUG
-  goto skip;
-  #endif
-*/
+  int sockfd;                         // Socket file descripter.
+  struct sockaddr_in serveraddress;   // Server address.
+  unsigned short serverport;          // Server port.
+  char cmdbuffer[BUFSIZE];            // Buffer for command inputs.
+  char msgbuffer[BUFSIZE];            // Buffer for send and receive.
+  char *serverip;                       // Server IP address (dotted).
 
   // check for correct # of arguments (1 or 2)
   if ((argc < 2) || (argc > 3)) {
@@ -88,21 +73,21 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  // Server IP
-  servIP = argv[1];
+  // Server IP.
+  serverip = argv[1];
 
-  // Check if port is specified
+  // Check if port is specified.
   if (argc == 3) {
     serverport = atoi(argv[2]);
   } else {
-    serverport = 7; // 7 is a well know port for echo service
+    serverport = 7; // 7 is a well know port for echo service.
   }
 
   #ifdef DEBUG
   printf("[DEBUG] Creating TCP socket...\n");
   #endif
 
-  // Create a TCP socket
+  // Create a TCP socket.
   if ((sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
     Die("Failed to create socket");
   }
@@ -111,11 +96,11 @@ int main(int argc, char *argv[]) {
   printf("[DEBUG] Created a TCP socket...\n");
   #endif
 
-  // Construct the server address structure
+  // Construct the server address structure.
   memset(&serveraddress, 0, sizeof(serveraddress));
   serveraddress.sin_family      = AF_INET;
-  serveraddress.sin_addr.s_addr = inet_addr(servIP);  // convert to network byte
-  serveraddress.sin_port        = htons(serverport);  // convert to port
+  serveraddress.sin_addr.s_addr = inet_addr(serverip);  // Convert to network byte.
+  serveraddress.sin_port        = htons(serverport);    // Convert to port.
 
   #ifdef DEBUG
   printf("[DEBUG] Connecting to server %s...\n", servIP);
@@ -130,28 +115,16 @@ int main(int argc, char *argv[]) {
   printf("[DEBUG] Connected to server... connect()\n");
   #endif
 
-  /*
-  #ifdef DEBUG
-  skip:
-  #endif
-  */
-
-  // Return value variable for functions
+  // Return value variable for functions.
   int rv = 0;
   int loop = 1;
-  memset(cmdbuffer, 0, sizeof(char)*BUFSIZE);
-  memset(msgbuffer, 0, sizeof(char)*BUFSIZE);
-  // Main logic code
+
+  // Main logic code.
   while (loop) {
     printf("ft> ");
     fgets(cmdbuffer, BUFSIZE, stdin);
 
     cmdbuffer[strlen(cmdbuffer)-1] = 0;
-    // replace '\n' at the end of user input with '\0'.
-    //char *pos;
-    //if ((pos = strchr(cmdbuffer, '\n')) != NULL) {
-    //  *pos = '\0';
-    //}
 
     // NumInputs replaces the buffer used, so create a new buffer.
     char pstring[BUFSIZE];
@@ -161,19 +134,18 @@ int main(int argc, char *argv[]) {
     rv = NumInputs(pstring);
 
     #ifdef DEBUG
-    printf("[DEBUG] rv = NumInputs() = %i\n", rv);
     printf("[DEBUG] cmdbuffer = '%s'\n", cmdbuffer);
     #endif
 
     // This big if/else could be changed.
     // 1 command input
     if (rv == 1) {
+
       #ifdef DEBUG
       printf("[DEBUG] 1 word input\n");
       #endif
 
       if (strcmp(cmdbuffer, "quit") == 0) {
-        //stringlen = strlen(cmdbuffer);
 
         #ifdef DEBUG
         printf("--== Sending message '%s' to the server --==\n", cmdbuffer);
@@ -191,6 +163,7 @@ int main(int argc, char *argv[]) {
       } else if (strcmp(cmdbuffer, "help") == 0) {
         HelpMessage();
       } else if (strcmp(cmdbuffer, "ls") == 0) {
+
         #ifdef DEBUG
         printf("[DEBUG] ls command\n");
         #endif
@@ -205,6 +178,7 @@ int main(int argc, char *argv[]) {
     } else if (rv == 2) { // 2 command inputs.
       // Basic format validation for option and 1 argument.
       if ((StartsWith(cmdbuffer, "get ") == 0) && strstr(cmdbuffer, " ")) {
+
         #ifdef DEBUG
         printf("[DEBUG] get <remote-file> command\n");
         #endif
@@ -212,6 +186,7 @@ int main(int argc, char *argv[]) {
         HandleRequestGet(sockfd, cmdbuffer, msgbuffer);
 
       } else if ((StartsWith(cmdbuffer, "put ") == 0) && strstr(cmdbuffer, " ")) {
+
         #ifdef DEBUG
         printf("[DEBUG] put <file-name> command\n");
         #endif
@@ -219,12 +194,14 @@ int main(int argc, char *argv[]) {
         HandleRequestPut(sockfd, cmdbuffer, msgbuffer);
 
       } else if ((StartsWith(cmdbuffer, "cd") == 0) && strstr(cmdbuffer, " ")) {
+
         #ifdef DEBUG
         printf("[DEBUG] cd <directory> command\n");
         #endif
 
         HandleRequest(sockfd, cmdbuffer, msgbuffer);
       } else if ((StartsWith(cmdbuffer, "mkdir") == 0) && strstr(cmdbuffer, " ")) {
+
         #ifdef DEBUG
         printf("[DEBUG] mkdir <directory-name> command\n");
         #endif
@@ -263,14 +240,6 @@ int FileExists(const char *filename) {
   return access(filename, F_OK);
 }
 
-int PutFileRemote(const char *filename) {
-  return 0;
-}
-
-int GetFileRemote(const char *filename) {
-    return 0;
-}
-
 int NumInputs(char *string) {
   // send ls command
   #ifdef DEBUG
@@ -279,7 +248,9 @@ int NumInputs(char *string) {
 
   int numsubstrings = 0;
   char *token = strtok(string, " ");
+
   while (token) {
+
     #ifdef DEBUG
     printf("[DEBUG] token: %s\n", token);
     #endif
@@ -297,9 +268,6 @@ char *SecondSubstring(char* string) {
 }
 
 int SendMessage(int socket, char *buffer) {
-  //unsigned int stringlen = strlen(message);
-  //message[stringlen] = '\0';
-
   #ifdef DEBUG
   printf("Inside SendMessage: '%s'\n", buffer);
   #endif
@@ -317,6 +285,7 @@ int SendMessage(int socket, char *buffer) {
 }
 
 int ReceiveMessage(int socket, char *buffer) {
+
   #ifdef DEBUG
   printf("Inside ReceiveMessage.\n");
   #endif
@@ -327,16 +296,17 @@ int ReceiveMessage(int socket, char *buffer) {
   if ((bytesRecvd = recv(socket, buffer, sizeof(char)*BUFSIZE, 0)) < 0) {
     Die("Failed to receive message");
   }
+
   buffer[bytesRecvd] = '\0';
+
   #ifdef DEBUG
   printf("Received message from server: '%s'\n", buffer);
   #endif
+
   return bytesRecvd;
 }
 
 int HandleRequestLs(int socket, char *cmdbuffer, char *msgbuffer) {
-  //unsigned int stringlen = strlen(cmdbuffer);
-  //size_t stringlen = sizeof(char)*BUFSIZE;
 
   #ifdef DEBUG
   printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
@@ -354,24 +324,17 @@ int HandleRequestLs(int socket, char *cmdbuffer, char *msgbuffer) {
   int bytesRecvd = 0;
 
   // Read results from server until a null terminator is found.
-  //while (1) {
-    if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
-      Die("Failed to receive message");
-    }
-    
-    msgbuffer[bytesRecvd] = '\0';
+  if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
+    Die("Failed to receive message");
+  }
 
-    // Check if it is the last message.
-    //if (msgbuffer[0] == '\0') {
-    //  break;
-    //}
+  msgbuffer[bytesRecvd] = '\0';
 
-    // Output the server results.
-    printf("%s", msgbuffer);
+  // Output the server results.
+  printf("%s", msgbuffer);
 
-    // Clear msgbuffer.
-    memset(msgbuffer, 0, sizeof(char)*BUFSIZE);
-  //}
+  // Clear msgbuffer.
+  memset(msgbuffer, 0, sizeof(char)*BUFSIZE);
 
   #ifdef DEBUG
   printf("--== Received entire result of '%s' from the server --==\n", cmdbuffer);
@@ -381,7 +344,6 @@ int HandleRequestLs(int socket, char *cmdbuffer, char *msgbuffer) {
 }
 
 int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer) {
-  //unsigned int stringlen = strlen(cmdbuffer);
 
   #ifdef DEBUG
   printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
@@ -419,9 +381,6 @@ int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer) {
 }
 
 int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
-  //unsigned int stringlen = strlen(cmdbuffer);
-
-
   // Getting pointer to the file name, which is the 2nd substring
   char *filename = strchr(cmdbuffer, ' ') + 1;
 
@@ -432,9 +391,6 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
   if (FileExists(filename) == 0) {
     #ifdef DEBUG
     printf("[DEBUG] File '%s' exists.\n", filename);
-    #endif
-
-    #ifdef DEBUG
     printf("--== Sending message '%s' to the server --==\n", cmdbuffer);
     #endif
 
@@ -445,9 +401,6 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
 
     #ifdef DEBUG
     printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
-    #endif
-  
-    #ifdef DEBUG
     printf("[DEBUG] Waiting on recv() for message 'filesize' from server\n");
     #endif
 
@@ -462,9 +415,6 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
 
       #ifdef DEBUG
       printf("[DEBUG] Received message from server: '%s'\n", msgbuffer);
-      #endif
-
-      #ifdef DEBUG
       printf("[DEBUG] Server is ready to receive file.\n");
       #endif
 
@@ -476,26 +426,18 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       fseek(file, 0, SEEK_END);
       unsigned long filesize = ftell(file);
 
-
       #ifdef DEBUG
       printf("[DEBUG] %s has size: %d\n", filename, filesize);
-      #endif
-
-      #ifdef DEBUG
       printf("[DEBUG] Sending filesize to server\n");
       #endif
 
-      // send header to client
+      // Send file size to server.
       struct header hdr;
       hdr.data_length = filesize;
       send(socket, (const char*)(&hdr), sizeof(hdr), 0);
 
       #ifdef DEBUG
       printf("[DEBUG] Sent filesize to server\n");
-      #endif
-
-
-      #ifdef DEBUG
       printf("[DEBUG] Waiting for server to be ready to receive messages.\n");
       #endif
 
@@ -509,11 +451,12 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       #ifdef DEBUG
       printf("[DEBUG] Server ready to receive messages\n");
       #endif
+
       char *buffers = (char*)malloc(sizeof(char)*filesize);
       rewind(file);
-      // store read data into buffer
+
+      // Store read data into buffer.
       fread(buffers, sizeof(char), filesize, file);
-      // send buffer to client
 
       #ifdef DEBUG
       printf("[DEBUG] Sending file to server.\n");
@@ -532,9 +475,10 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       printf("[DEBUG] Sent file to server\n");
       #endif
 
-
+      // Clean up data.
       fclose(file);
       free(buffers);
+
       // Receive a message from server indicating the server has succesfully received the file.
       if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
         Die("Failed to receive message");
@@ -567,27 +511,22 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
   printf("[DEBUG] Sending message '%s' to server.\n", cmdbuffer);
   #endif
 
-  // sending command get
+  // Sending command 'get <file name>'
   SendMessage(socket,cmdbuffer);
 
   #ifdef DEBUG
   printf("[DEBUG] Sent message '%s' to server.\n", cmdbuffer);
-  #endif
-
-  #ifdef DEBUG
   printf("[DEBUG] Waiting for filesize from server.\n");
   #endif
 
-  // waiting for server to send for filesize
-  struct header hdr;
 
+  struct header hdr;
   hdr.data_length = 0;
-  // receive header
+
+  // Receive the size of data from server.
   recv(socket, (const char*)(&hdr), sizeof(hdr), 0);
 
   int filesize = hdr.data_length;
-
-  printf("data_length = %d\n", filesize);
 
   if (filesize == -1) {
     printf("File does not exist on server. Please try again.\n");
@@ -598,8 +537,8 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
   printf("[DEBUG] Received filesize from server: '%d'\n", msgbuffer);
   #endif
 
-  // file exists on the server. 
-  // send a message to the server to begin sending the file
+  // File exists on the server. 
+  // Send a message to the server to begin sending the file.
 
   int received = 0, n = 0;
   FILE *file;
@@ -607,9 +546,10 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
 
   file = fopen(filename, "w");
 
-  // resize buffer
+  // Resize buffer
   char *tempBuffer = calloc(sizeof(char), filesize);
-  // receive data
+
+  // Tell server we are ready to receive the file
   send(socket, "clientReady", sizeof("clientReady"), 0);
 
   #ifdef DEBUG
@@ -629,6 +569,7 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
 
   fwrite(tempBuffer, 1, sizeof(char)*filesize, file);
 
+  // Clean up data.
   fclose(file);
   free(tempBuffer);
 
