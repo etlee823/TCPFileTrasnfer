@@ -90,18 +90,19 @@ int main()
         printf("waiting for new input \n");
         
         bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0);
-        printf("bytesRcv prints %d\n", bytesRcv);
-        printf("I have received this in buffer \n %s \n", buffer);
+        
+        //handle quit
         if (strcmp(buffer, "quit") == 0) {
-            
             printf("received quit command\n");
             cleanUp();
             
+            //handle ls
         } else if (buffer[0] == 'l' && buffer[1] == 's') {
             
             handlels(buffer);
             send(clientSocket, buffer, sizeof(buffer), 0);
             
+            //handle cd
         } else if (buffer[0] == 'c' && buffer[1] == 'd') {
             printf("received cd command\n");
             
@@ -120,6 +121,7 @@ int main()
                 send(clientSocket, "fail\0", sizeof("fail\0"), 0);
             }
             
+            //handle get
         } else if (buffer[0] == 'g' && buffer[1] == 'e' && buffer[2] == 't'){
             printf("received get command \n");
             
@@ -183,6 +185,7 @@ int main()
                 send(clientSocket, (const char*)(&hdr), sizeof(hdr), 0);
             }
             
+            //handle put
         } else if ( buffer[0] == 'p' && buffer[1] == 'u' && buffer[2] == 't'){
             printf("received put command \n");
             
@@ -223,10 +226,8 @@ int main()
             free(tempBuffer);
             printf("finished sending\n");
             send(clientSocket, "success", sizeof("success"), 0);
-            //} else {
-            //    send(clientSocket, "fail\n", sizeof("fail\n"), 0);
-            //}
             
+            //handle mkdir
         } else if ( buffer[0] == 'm' && buffer[1] == 'k' && buffer[2] == 'd'&& buffer[3] == 'i'&& buffer[4] == 'r') {
             printf("received mkdir command \n");
             
@@ -236,9 +237,6 @@ int main()
             for (i = 6; buffer[i] != '\0'; i++){
                 directory[i-6] = buffer[i];
             }
-            
-            printf("%s \n", buffer);
-            printf("%s \n", directory);
             
             /** making directory */
             if (mkdir(directory, 0700) == 0) {
