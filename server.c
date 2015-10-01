@@ -169,11 +169,20 @@ int main()
             char *tempBuffer = calloc(sizeof(char), hdr.data_length);
             // receive data
             send(clientSocket, "serverReady", sizeof("serverReady"), 0);
-            recv(clientSocket, tempBuffer, sizeof(char)*hdr.data_length, 0);
+
+            int filesize = hdr.data_length;
+            int received = 0, n = 0;
+            while(received < filesize) {
+                n = recv(clientSocket, tempBuffer+received, filesize-received, 0);
+                if(n == -1)
+                    break;
+                received += n;
+            }
             fwrite(tempBuffer, 1, sizeof(char)*hdr.data_length, file);
             
             printf("finished writing\n");
             fclose(file);
+            free(tempBuffer);
             printf("finished sending\n");
             send(clientSocket, "success", sizeof("success"), 0);
             //} else {
@@ -224,7 +233,7 @@ void cleanUp(){
     close(myListenSocket);
     close(clientSocket);
     
-    printf("clean up finished, terminating process");
+    printf("clean up finished, terminating process\n");
     exit(0);
 }
 

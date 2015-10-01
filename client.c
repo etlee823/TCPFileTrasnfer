@@ -60,6 +60,8 @@ int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer);
 int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer);
 
 
+int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer);
+
 /////////////////////////////////////////////////////////////////////
 // Main.
 /////////////////////////////////////////////////////////////////////
@@ -144,7 +146,7 @@ int main(int argc, char *argv[]) {
     printf("ft> ");
     fgets(cmdbuffer, BUFSIZE, stdin);
 
-      cmdbuffer[strlen(cmdbuffer)-1] = 0;
+    cmdbuffer[strlen(cmdbuffer)-1] = 0;
     // replace '\n' at the end of user input with '\0'.
     //char *pos;
     //if ((pos = strchr(cmdbuffer, '\n')) != NULL) {
@@ -171,16 +173,14 @@ int main(int argc, char *argv[]) {
       #endif
 
       if (strcmp(cmdbuffer, "quit") == 0) {
-        stringlen = strlen(cmdbuffer);
+        //stringlen = strlen(cmdbuffer);
 
         #ifdef DEBUG
         printf("--== Sending message '%s' to the server --==\n", cmdbuffer);
         #endif
 
         // Send the 'quit' message to the server.
-        if ((rv = send(sockfd, cmdbuffer, sizeof(cmdbuffer), 0)) != stringlen) {
-          Die("Failed to send 'quit' message to server");
-        }
+        SendMessage(sockfd,cmdbuffer);
 
         #ifdef DEBUG
         printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
@@ -209,34 +209,13 @@ int main(int argc, char *argv[]) {
         printf("[DEBUG] get <remote-file> command\n");
         #endif
 
+        HandleRequestGet(socket, cmdbuffer, msgbuffer);
+
       } else if ((StartsWith(cmdbuffer, "put ") == 0) && strstr(cmdbuffer, " ")) {
         #ifdef DEBUG
         printf("[DEBUG] put <file-name> command\n");
         #endif
 
-/*
-        // 1. Verify <file-name> exists
-
-        // Need to extract the file name from cmdbuffer..
-        if (FileExists("testfile") == 0) {
-          #ifdef DEBUG
-          printf("[DEBUG] file name: %s does exist\n", cmdbuffer);
-          #endif
-
-          // 2. Send file to server through messages
-          if (PutFileRemote("<file-name>")) {
-            printf("put <file-name> failed with error: %i", rv);
-          } else { 
-            printf("%s was successful\n", cmdbuffer);
-          }
-        }
-
-        // Send 'put <file-name>' message to server.
-
-        // Begin sending messages of the file line by line.
-
-        // Output that the message transfer is complete.
-        */
         HandleRequestPut(sockfd, cmdbuffer, msgbuffer);
 
       } else if ((StartsWith(cmdbuffer, "cd") == 0) && strstr(cmdbuffer, " ")) {
@@ -539,7 +518,15 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       #ifdef DEBUG
       printf("[DEBUG] Sending file to server.\n");
       #endif
-      send(socket, buffers, filesize, 0); // error checking is done in actual code and it sends perfectly
+
+      int sent = 0, n = 0;
+      while (sent < filesize) {
+        n = send(socket, buffers+sent, filesize-sent, 0); // error checking is done in actual code and it sends perfectly
+        if (n == -1)
+            break;  // ERROR
+
+        sent += n;
+      }
 
       #ifdef DEBUG
       printf("[DEBUG] Sent file to server\n");
@@ -570,6 +557,57 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
   #ifdef DEBUG
   printf("--== Received entire result of '%s' from the server --==\n", cmdbuffer);
   #endif
+
+  return 0;
+}
+
+int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
+  // Send message "Get <file name>"
+  #ifdef DEBUG
+  printf("[DEBUG] Sending message '%s' to server.\n", cmdbuffer);
+  #endif
+
+  // sending command get
+  SendMessage(socket,cmdbuffer);
+
+  #ifdef DEBUG
+  printf("[DEBUG] Sent message '%s' to server.\n", cmdbuffer);
+  #endif
+
+  #ifdef DEBUG
+  printf("[DEBUG] Waiting for filesize from server.\n");
+  #endif
+
+  // waiting for server to send for filesize
+  ReceiveMessage(socket, msgbuffer);
+
+  #ifdef DEBUG
+  printf("[DEBUG] Received filesize from server: '%d'\n", msgbuffer);
+  #endif
+
+  FILE *file;
+  char *filename = strchr(cmdbuffer, ' ') + 1;
+
+  file = fopen(filename, "w");
+  send(socket, "filesize", sizeof("filesize"), 0);
+
+  struct header hdr;
+
+  hdr.data_length = 0;
+  // receive header
+  recv(socket, (const char*)(&hdr), sizeof(hdr), 0);
+  printf("data_length = %d\n", hdr.data_length);
+  // resize buffer
+  char *tempBuffer = calloc(sizeof(char), hdr.data_length);
+  // receive data
+  send(socket, "clientReady", sizeof("clientReady"), 0);
+  recv(socket, tempBuffer, sizeof(char)*hdr.data_length, 0);
+  fwrite(tempBuffer, 1, sizeof(char)*hdr.data_length, file);
+  
+  printf("finished writing\n");
+  fclose(file);
+  printf("finished sending\n");
+  send(socket, "success", sizeof("success"), 0);
 
   return 0;
 }
