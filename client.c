@@ -8,6 +8,10 @@
 #define BUFSIZE 1024    // Buffer size.
 //#define DEBUG 0         // If defined, print statements will be enabled for debugging.
 
+struct header
+{
+  long  data_length;
+};
 
 /////////////////////////////////////////////////////////////////////
 // Function protoypes.
@@ -345,7 +349,9 @@ int ReceiveMessage(int socket, char *buffer) {
     Die("Failed to receive message");
   }
   buffer[bytesRecvd] = '\0';
-  
+  #ifdef DEBUG
+  printf("Received message from server: '%s'\n", buffer);
+  #endif
   return bytesRecvd;
 }
 
@@ -463,79 +469,85 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
     #endif
   
     #ifdef DEBUG
-    printf("[DEBUG] Handling '%s' request to server\n", cmdbuffer);
+    printf("[DEBUG] Waiting on recv() for message 'filesize' from server\n");
     #endif
 
     int bytesRecvd = 0;
     // Check for message "Server ready to receive file" message from server.
-    if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
-      Die("Failed to receive message");
-    }
-  
+    ReceiveMessage(socket, msgbuffer);
+
     FILE *file;
 
-    if (strcmp(msgbuffer, "Server ready to receive file") == 0) {
-      file = fopen(filename, "r");
+    if (strcmp(msgbuffer, "filesize") == 0) {
+      file = fopen(filename, "rb");
 
       #ifdef DEBUG
       printf("[DEBUG] Received message from server: '%s'\n", msgbuffer);
       #endif
 
       #ifdef DEBUG
-      printf("[DEBUG] Server is ready to receive file\n");
+      printf("[DEBUG] Server is ready to receive file.\n");
       #endif
 
       if (file == NULL) {
         printf("Unable to open file '%s'\n", filename);
         return -1;
       }
-         
-      // Send the file to the server
-      while (fgets(msgbuffer, sizeof(char)*BUFSIZE, file) != NULL) {
-        #ifdef DEBUG
-        printf("[DEBUG] Sending message: '%s'\n", msgbuffer);
-        #endif
 
-        // Add a null character for the recv to know when to stop receving a message
-        //msgbuffer[strlen(msgbuffer)] = '\0';
+      fseek(file, 0, SEEK_END);
+      unsigned long filesize = ftell(file);
+      char *buffers = (char*)malloc(sizeof(char)*filesize);
 
-        // Probably could use something better then fgets? fgets includes '\n' character at the end
-        // replace '\n' at the end of user input with '\0'.
-        /*char *pos;
-        if ((pos = strchr(msgbuffer, '\n')) != NULL) {
-          *pos = '\0';
-        }*/
+      #ifdef DEBUG
+      printf("[DEBUG] %s has size: %d\n", filename, filesize);
+      #endif
 
-        SendMessage(socket, msgbuffer);
+      #ifdef DEBUG
+      printf("[DEBUG] Sending filesize to server\n");
+      #endif
 
-        #ifdef DEBUG
-        printf("[DEBUG] Sent message: '%s'\n", msgbuffer);
-        #endif     
+      // send header to client
+      struct header hdr;
+      hdr.data_length = filesize;
+      send(socket, (const char*)(&hdr), sizeof(hdr), 0);
 
-        // Checking if server has received msg..
-        if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
-          Die("Failed to receive message");
-        }
+      #ifdef DEBUG
+      printf("[DEBUG] Sent filesize to server\n");
+      #endif
 
-        #ifdef DEBUG
-        printf("[DEBUG] Sent message: '%s'\n", msgbuffer);
-        #endif   
 
+      #ifdef DEBUG
+      printf("[DEBUG] Waiting for server to be ready to receive messages.\n");
+      #endif
+
+      ReceiveMessage(socket, msgbuffer);
+
+      if (strcmp(msgbuffer, "serverReady") != 0) {
+          printf("Server not ready\n");
+          return -1;
       }
 
       #ifdef DEBUG
-      printf("[DEBUG] end of file, sending null message\n");
+      printf("[DEBUG] Server ready to receive messages\n");
       #endif
 
-      // End of file, send a null character message to server to stop receiving.
-      //if(feof(file)) {
-        memset(msgbuffer, 0, sizeof(char)*BUFSIZE);
-        msgbuffer[0] = '\0';
-        SendMessage(socket, msgbuffer);
-      //}
+      rewind(file);
+      // store read data into buffer
+      fread(buffers, sizeof(char), filesize, file);
+      // send buffer to client
+
+      #ifdef DEBUG
+      printf("[DEBUG] Sending file to server.\n");
+      #endif
+      send(socket, buffers, filesize, 0); // error checking is done in actual code and it sends perfectly
+
+      #ifdef DEBUG
+      printf("[DEBUG] Sent file to server\n");
+      #endif
+
 
       fclose(file);
-
+      free(buffers);
       // Receive a message from server indicating the server has succesfully received the file.
       if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
         Die("Failed to receive message");
@@ -544,7 +556,7 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       // Output result from server
       printf("%s\n", msgbuffer);
     } else {
-      printf("Received incorrect message from server: '%s'\n", msgbuffer);
+      printf("Received incorrect message from server. Expected 'filesize' but instead received: '%s'\n", msgbuffer);
       return -1;
     }
   } else {

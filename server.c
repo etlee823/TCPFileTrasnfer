@@ -21,7 +21,13 @@ void clearBuffer(char*);
 int fileExists(const char*);
 
 int myListenSocket, clientSocket;
+struct header hdr;
 FILE *file;
+
+struct header
+{
+    long    data_length;
+};
 
 int main()
 {
@@ -32,7 +38,7 @@ int main()
     socklen_t len;
     
     port = PORT;
-
+    
     printf("--== Server Running --==\n");
     
     printf("--== Creating Socket --==");
@@ -98,7 +104,7 @@ int main()
             
         } else if (buffer[0] == 'c' && buffer[1] == 'd') {
             printf("received cd command\n");
-
+            
             char directory[MAX_BUF] = {0};
             int i;
             
@@ -142,6 +148,7 @@ int main()
         } else if ( buffer[0] == 'p' && buffer[1] == 'u' && buffer[2] == 't'){
             printf("received put command \n");
             
+            
             char fileName[MAX_BUF] = {0};
             int i;
             char c;
@@ -150,12 +157,20 @@ int main()
             for (i = 4; buffer[i] != '\0'; i++){
                 fileName[i-4] = buffer[i];
             }
-            //if (!fileExists(fileName)){
-            file = fopen(fileName, "w");
             
-                //while (c = fgetc(file)) != EOF){
-                    fwrite(buffer, 1, sizeof(buffer), file);
-                //}
+            file = fopen(fileName, "w");
+            send(clientSocket, "filesize", sizeof("filesize"), 0);
+            
+            hdr.data_length = 0;
+            // receive header
+            recv(clientSocket, (const char*)(&hdr), sizeof(hdr), 0);
+            printf("data_length = %d\n", hdr.data_length);
+            // resize buffer
+            char *tempBuffer = calloc(sizeof(char), hdr.data_length);
+            // receive data
+            send(clientSocket, "serverReady", sizeof("serverReady"), 0);
+            recv(clientSocket, tempBuffer, sizeof(char)*hdr.data_length, 0);
+            fwrite(tempBuffer, 1, sizeof(char)*hdr.data_length, file);
             
             printf("finished writing\n");
             fclose(file);
