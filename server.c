@@ -72,6 +72,7 @@ int main()
     }
     
     
+    while (1){
     printf("--== Server waiting for connection request --==\n");
     addrSize = sizeof(clientAddr);
     clientSocket = accept(myListenSocket, (struct sockaddr *) &clientAddr,  &addrSize);
@@ -85,11 +86,7 @@ int main()
     
     
     
-    while (1){
-        
-        printf("waiting for new input \n");
-        
-        bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0);
+    while ((bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0){
         
         //handle quit
         if (strcmp(buffer, "quit") == 0) {
@@ -229,7 +226,7 @@ int main()
             
             //handle mkdir
         } else if ( buffer[0] == 'm' && buffer[1] == 'k' && buffer[2] == 'd'&& buffer[3] == 'i'&& buffer[4] == 'r') {
-            printf("received mkdir command \n");
+            printf("received mkdir command \nq  ");
             
             char directory[MAX_BUF] = {0};
             int i;
@@ -251,6 +248,8 @@ int main()
         }
         
         clearBuffer(buffer);
+        }
+        close(clientSocket);
     }
     
     cleanUp();
