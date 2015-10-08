@@ -4,6 +4,7 @@
 #include <stdlib.h>       // For atoi().
 #include <string.h>       // For memset(), strstr().
 #include <unistd.h>       // For close(), access(), exec().
+#include <errno.h>
 
 #define BUFSIZE 1024    // Buffer size.
 //#define DEBUG 0         // If defined, print statements will be enabled for debugging.
@@ -293,8 +294,12 @@ int ReceiveMessage(int socket, char *buffer) {
   int bytesRecvd = 0;
 
   // Send command to server
-  if ((bytesRecvd = recv(socket, buffer, sizeof(char)*BUFSIZE, 0)) < 0) {
-    Die("Failed to receive message");
+  if ((bytesRecvd = recv(socket, buffer, sizeof(char)*BUFSIZE, 0)) <= 0) {
+    if(errno == 0) {
+      printf("Server is closed, shutting off client.\n");
+      exit(1);
+    }
+    Die("recv() failed.");
   }
 
   buffer[bytesRecvd] = '\0';
@@ -323,9 +328,7 @@ int HandleRequestLs(int socket, char *cmdbuffer, char *msgbuffer) {
   int bytesRecvd = 0;
 
   // Read results from server until a null terminator is found.
-  if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
-    Die("Failed to receive message");
-  }
+  bytesRecvd = ReceiveMessage(socket, msgbuffer);
 
   msgbuffer[bytesRecvd] = '\0';
 
@@ -358,9 +361,7 @@ int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer) {
   int bytesRecvd = 0;
 
   // Read result from server.
-  if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
-    Die("Failed to receive message");
-  }
+  bytesRecvd = ReceiveMessage(socket, msgbuffer);
 
   if ((strcmp(msgbuffer, "success") != 0)) {
     // Output the server results.
@@ -480,9 +481,7 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       free(buffers);
 
       // Receive a message from server indicating the server has succesfully received the file.
-      if ((bytesRecvd = ReceiveMessage(socket, msgbuffer)) < 0) {
-        Die("Failed to receive message");
-      }
+      bytesRecvd = ReceiveMessage(socket, msgbuffer);
 
       // Output result from server
       printf("%s\n", msgbuffer);
@@ -524,7 +523,13 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
   hdr.data_length = 0;
 
   // Receive the size of data from server.
-  recv(socket, (const char*)(&hdr), sizeof(hdr), 0);
+  if(recv(socket, (const char*)(&hdr), sizeof(hdr), 0) <= 0) {
+    if(errno == 0) {
+      printf("Server is closed, shutting off client.\n");
+      exit(1);
+    }
+    Die("error");
+  }
 
   int filesize = hdr.data_length;
 
@@ -559,7 +564,14 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
   #endif
 
   while(received < filesize) {
-      n = recv(socket, tempBuffer+received, filesize-received, 0);
+      if((n = recv(socket, tempBuffer+received, filesize-received, 0)) <= 0) {
+        if(errno == 0) {
+          printf("Server is closed, shutting off client.\n");
+          exit(1);
+        }
+        Die("error");
+      }
+
       if(n == -1)
           break;
       received += n;
