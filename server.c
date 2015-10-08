@@ -85,16 +85,9 @@ int main()
     
     
     
-    
     while ((bytesRcv = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0){
         
-        //handle quit
-        if (strcmp(buffer, "quit") == 0) {
-            printf("received quit command\n");
-            cleanUp();
-            
-            //handle ls
-        } else if (buffer[0] == 'l' && buffer[1] == 's') {
+        if (buffer[0] == 'l' && buffer[1] == 's') {
             
             handlels(buffer);
             send(clientSocket, buffer, sizeof(buffer), 0);
@@ -252,8 +245,6 @@ int main()
         close(clientSocket);
     }
     
-    cleanUp();
-    
     return 0;
 }
 
@@ -307,4 +298,15 @@ void clearBuffer(char* buffer){
  */
 int fileExists(const char *filename) {
     return access(filename, F_OK);
+}
+
+/*         Name: handleSigInt
+ *  Description: handles the SIGINT signal and calls the cleanUp function
+ *   Parameters: int
+ *       Return: void
+ */
+void handleSigInt(int i){
+    printf("handling SIGINT, calling cleanUp function\n");
+    cleanUp();
+    exit(0);
 }
