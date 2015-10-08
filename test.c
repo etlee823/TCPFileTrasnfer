@@ -115,6 +115,24 @@ int main(int argc, char *argv[]) {
   printf("[DEBUG] Connected to server... connect()\n");
   #endif
 
+  while(1) {
+  int error = 0;
+  socklen_t len = sizeof (error);
+  int retval = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &error, &len);
+
+  if (retval != 0) {
+    /* there was a problem getting the error code */
+    fprintf(stderr, "error getting socket error code: %s\n", strerror(retval));
+    return 0;
+  }
+
+  if (error != 0) {
+    /* socket has a non zero error status */
+    fprintf(stderr, "socket error: %s\n", strerror(error));
+  }
+  }
+
+/*
   // Return value variable for functions.
   int rv = 0;
   int loop = 1;
@@ -216,6 +234,7 @@ int main(int argc, char *argv[]) {
       HelpMessage();
     }
   } // End while loop.
+  */
 } // End main.
 
 
