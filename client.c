@@ -313,9 +313,8 @@ int HandleRequestLs(int socket, char *cmdbuffer, char *msgbuffer) {
   #endif
 
   // Send command to server.
-  if (SendMessage(socket, cmdbuffer) < 0) {
-    Die("Failed to send message");
-  }
+  SendMessage(socket, cmdbuffer);
+
 
   #ifdef DEBUG
   printf("[DEBUG] Handling '%s' request to server\n", cmdbuffer);
@@ -350,9 +349,7 @@ int HandleRequest(int socket, char *cmdbuffer, char *msgbuffer) {
   #endif
 
   // Send command to server.
-  if (SendMessage(socket,cmdbuffer) < 0) {
-    Die("Failed to send message");
-  }
+  SendMessage(socket,cmdbuffer);
 
   #ifdef DEBUG
   printf("[DEBUG] Handling '%s' request to server\n", cmdbuffer);
@@ -395,9 +392,7 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
     #endif
 
     // Send command to server.
-    if (SendMessage(socket, cmdbuffer) < 0) {
-      Die("Failed to send message");
-    }
+    SendMessage(socket, cmdbuffer);
 
     #ifdef DEBUG
     printf("--== Sent message '%s' to the server --==\n", cmdbuffer);
@@ -434,7 +429,9 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
       // Send file size to server.
       struct header hdr;
       hdr.data_length = filesize;
-      send(socket, (const char*)(&hdr), sizeof(hdr), 0);
+      if (send(socket, (const char*)(&hdr), sizeof(hdr), 0) < 0) {
+        Die("send() failed.\n");
+      }
 
       #ifdef DEBUG
       printf("[DEBUG] Sent filesize to server\n");
@@ -464,7 +461,10 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
 
       int sent = 0, n = 0;
       while (sent < filesize) {
-        n = send(socket, buffers+sent, filesize-sent, 0); // error checking is done in actual code and it sends perfectly
+        if ((n = send(socket, buffers+sent, filesize-sent, 0)) < 0) {
+          Die("send() failed.");
+        }
+
         if (n == -1)
             break;  // ERROR
 
@@ -499,7 +499,7 @@ int HandleRequestPut(int socket, char *cmdbuffer, char *msgbuffer) {
   memset(msgbuffer, 0, sizeof(char)*BUFSIZE);
 
   #ifdef DEBUG
-  printf("--== Received entire result of '%s' from the server --==\n", cmdbuffer);
+  printf("--== Server received entire file. --==\n");
   #endif
 
   return 0;
@@ -550,7 +550,9 @@ int HandleRequestGet(int socket, char *cmdbuffer, char *msgbuffer) {
   char *tempBuffer = calloc(sizeof(char), filesize);
 
   // Tell server we are ready to receive the file
-  send(socket, "clientReady", sizeof("clientReady"), 0);
+  if (send(socket, "clientReady", sizeof("clientReady"), 0) < 0) {
+    Die("send() failed");
+  }
 
   #ifdef DEBUG
   printf("[DEBUG] Sending clientReady to the server.\n");
